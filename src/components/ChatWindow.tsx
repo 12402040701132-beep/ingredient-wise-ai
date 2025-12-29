@@ -1,13 +1,12 @@
 import { useState, useRef, useEffect, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, ImagePlus, Sparkles, X } from 'lucide-react';
+import { Send, ImagePlus, Sparkles, X, Zap } from 'lucide-react';
 import type { Message, AnalysisResult } from '@/types';
 import { cn } from '@/lib/utils';
-import { performOCR, extractIngredients } from '@/lib/ocr';
+import { performOCR } from '@/lib/ocr';
 import { getMockAnalysis, inferHealthConcerns } from '@/lib/mock-data';
 import { MessageBubble, WelcomeMessage } from './MessageBubble';
 import { ImageUpload } from './ImageUpload';
-import { InsightsSummary } from './InsightCard';
 
 function generateId() {
   return Math.random().toString(36).substring(2, 9);
@@ -56,13 +55,9 @@ export function ChatWindow() {
       }
     }
 
-    // Infer health concerns from the query
     const concerns = inferHealthConcerns(query);
-    
-    // Get mock analysis (in production, this would call the AI API)
     const analysis = getMockAnalysis(query || extractedText);
     
-    // Merge inferred concerns
     if (concerns.length > 0) {
       analysis.healthProfile.concerns = [...new Set([...concerns, ...analysis.healthProfile.concerns])];
     }
@@ -87,7 +82,6 @@ export function ChatWindow() {
     setInputValue('');
     setIsLoading(true);
 
-    // Add loading message
     const loadingMessage: Message = {
       id: generateId(),
       role: 'assistant',
@@ -98,12 +92,10 @@ export function ChatWindow() {
     setMessages(prev => [...prev, loadingMessage]);
 
     try {
-      // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 1500));
       
       const analysis = await processAnalysis(inputValue, selectedImage || undefined);
 
-      // Build response content based on inferred concerns
       let responseContent = '';
       if (analysis.healthProfile.concerns.length > 0) {
         responseContent = `Based on your ${analysis.healthProfile.concerns.join(' and ')} concerns, here's my analysis of ${analysis.productName || 'this product'}:`;
@@ -119,13 +111,11 @@ export function ChatWindow() {
         insights: analysis.insights,
       };
 
-      // Replace loading message with actual response
       setMessages(prev => {
         const newMessages = prev.filter(m => !m.isLoading);
         return [...newMessages, assistantMessage];
       });
 
-      // Add summary as separate message
       setTimeout(() => {
         const summaryMessage: Message = {
           id: generateId(),
@@ -155,10 +145,10 @@ export function ChatWindow() {
   };
 
   const suggestedQueries = [
-    'Is this safe for diabetics?',
-    'Check for common allergens',
-    'Is this product vegan?',
-    'Analyze sodium content',
+    { text: 'Is this safe for diabetics?', icon: '🩺' },
+    { text: 'Check for common allergens', icon: '⚠️' },
+    { text: 'Is this product vegan?', icon: '🌱' },
+    { text: 'Analyze sodium content', icon: '🧂' },
   ];
 
   const handleSuggestion = (query: string) => {
@@ -167,7 +157,7 @@ export function ChatWindow() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex flex-col h-full">
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto px-4 py-6">
         <div className="max-w-2xl mx-auto space-y-6">
@@ -199,12 +189,12 @@ export function ChatWindow() {
               onClick={e => e.stopPropagation()}
               className="w-full max-w-md"
             >
-              <div className="bg-card rounded-2xl p-6 shadow-lg border border-border">
+              <div className="glass-card rounded-3xl p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold text-foreground">Upload Food Label</h3>
+                  <h3 className="font-display font-semibold text-foreground text-lg">Upload Food Label</h3>
                   <button
                     onClick={() => setShowUpload(false)}
-                    className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
+                    className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors"
                   >
                     <X className="w-4 h-4 text-muted-foreground" />
                   </button>
@@ -221,7 +211,7 @@ export function ChatWindow() {
       </AnimatePresence>
 
       {/* Input Area */}
-      <div className="border-t border-border bg-card/50 backdrop-blur-sm px-4 py-4">
+      <div className="border-t border-border/50 bg-card/50 backdrop-blur-xl px-4 py-4">
         <div className="max-w-2xl mx-auto space-y-3">
           {/* Image Preview */}
           <AnimatePresence>
@@ -230,22 +220,25 @@ export function ChatWindow() {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="flex items-center gap-2"
+                className="flex items-center gap-3"
               >
                 <div className="relative">
                   <img
                     src={imagePreview}
                     alt="Selected"
-                    className="h-16 w-16 object-cover rounded-lg border border-border"
+                    className="h-16 w-16 object-cover rounded-xl border-2 border-primary/30 shadow-soft"
                   />
                   <button
                     onClick={clearImage}
-                    className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center text-xs"
+                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow-soft"
                   >
                     <X className="w-3 h-3" />
                   </button>
                 </div>
-                <span className="text-sm text-muted-foreground">Image ready for analysis</span>
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium">
+                  <Zap className="w-4 h-4" />
+                  Ready to analyze
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -255,29 +248,30 @@ export function ChatWindow() {
             <div className="flex flex-wrap gap-2">
               {suggestedQueries.map((query, i) => (
                 <motion.button
-                  key={query}
+                  key={query.text}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.1 }}
-                  onClick={() => handleSuggestion(query)}
-                  className="px-3 py-1.5 text-sm rounded-full bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors border border-border"
+                  onClick={() => handleSuggestion(query.text)}
+                  className="px-4 py-2 text-sm rounded-full glass-card hover:shadow-soft transition-all duration-300 flex items-center gap-2"
                 >
-                  {query}
+                  <span>{query.icon}</span>
+                  <span className="text-foreground">{query.text}</span>
                 </motion.button>
               ))}
             </div>
           )}
 
           {/* Input Form */}
-          <form onSubmit={handleSubmit} className="flex items-center gap-2">
+          <form onSubmit={handleSubmit} className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => setShowUpload(true)}
               className={cn(
-                'w-10 h-10 rounded-xl flex items-center justify-center transition-colors',
+                'w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300',
                 imagePreview
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                  ? 'gradient-hero text-primary-foreground shadow-glow'
+                  : 'glass-card hover:shadow-soft text-foreground'
               )}
             >
               <ImagePlus className="w-5 h-5" />
@@ -290,11 +284,11 @@ export function ChatWindow() {
                 value={inputValue}
                 onChange={e => setInputValue(e.target.value)}
                 placeholder="Ask about any food product..."
-                className="w-full px-4 py-3 pr-12 rounded-xl bg-secondary text-foreground placeholder:text-muted-foreground border border-border focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                className="w-full px-5 py-3.5 pr-12 rounded-xl glass-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:shadow-soft transition-all"
                 disabled={isLoading}
               />
-              <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                <Sparkles className="w-4 h-4 text-muted-foreground/50" />
+              <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                <Sparkles className="w-4 h-4 text-primary/40" />
               </div>
             </div>
 
@@ -302,10 +296,10 @@ export function ChatWindow() {
               type="submit"
               disabled={isLoading || (!inputValue.trim() && !selectedImage)}
               className={cn(
-                'w-10 h-10 rounded-xl flex items-center justify-center transition-all',
+                'w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300',
                 isLoading || (!inputValue.trim() && !selectedImage)
                   ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                  : 'gradient-hero text-primary-foreground hover:shadow-glow'
+                  : 'gradient-hero text-primary-foreground shadow-glow hover:shadow-elevated'
               )}
             >
               <Send className="w-5 h-5" />
