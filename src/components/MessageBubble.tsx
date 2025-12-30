@@ -1,9 +1,10 @@
 import { motion } from 'framer-motion';
-import { User, Bot, ImageIcon } from 'lucide-react';
+import { User, Bot, Heart, Sparkles, Shield, AlertTriangle } from 'lucide-react';
 import type { Message } from '@/types';
 import { cn } from '@/lib/utils';
-import { InsightCard, InsightsSummary } from './InsightCard';
-import { ThinkingIndicator, SkeletonInsight } from './LoadingSpinner';
+import { InsightCard } from './InsightCard';
+import { HealthScoreCard } from './HealthScoreCard';
+import { ThinkingIndicator } from './LoadingSpinner';
 
 interface MessageBubbleProps {
   message: Message;
@@ -11,6 +12,7 @@ interface MessageBubbleProps {
 
 export function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === 'user';
+  const hasHealthData = message.healthScore !== undefined;
 
   return (
     <motion.div
@@ -82,6 +84,18 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           </div>
         )}
 
+        {/* Health Score Card - New medical feature */}
+        {hasHealthData && (
+          <HealthScoreCard
+            score={message.healthScore!}
+            summary={message.content}
+            concerns={message.concerns || []}
+            recommendations={message.recommendations || []}
+            allergenAlerts={message.allergenAlerts || []}
+            drugInteractions={message.drugInteractions || []}
+          />
+        )}
+
         {/* Insights */}
         {message.insights && message.insights.length > 0 && (
           <div className="space-y-3 w-full">
@@ -120,13 +134,44 @@ export function WelcomeMessage() {
         </p>
       </div>
 
+      {/* Feature highlights */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-lg w-full">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="p-4 rounded-xl glass-card text-center"
+        >
+          <Heart className="w-6 h-6 text-destructive mx-auto mb-2" />
+          <span className="text-xs font-medium text-foreground">Health Score</span>
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="p-4 rounded-xl glass-card text-center"
+        >
+          <AlertTriangle className="w-6 h-6 text-warning mx-auto mb-2" />
+          <span className="text-xs font-medium text-foreground">Allergen Alerts</span>
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="p-4 rounded-xl glass-card text-center"
+        >
+          <Shield className="w-6 h-6 text-primary mx-auto mb-2" />
+          <span className="text-xs font-medium text-foreground">Drug Interactions</span>
+        </motion.div>
+      </div>
+
       <div className="flex flex-wrap justify-center gap-2 max-w-sm">
         {['Is this safe for diabetics?', 'What about allergies?', 'Is this vegan?'].map((suggestion, i) => (
           <motion.span
             key={suggestion}
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.4 + i * 0.1 }}
+            transition={{ delay: 0.6 + i * 0.1 }}
             className="px-3 py-1.5 text-xs rounded-full bg-secondary text-secondary-foreground border border-border"
           >
             {suggestion}

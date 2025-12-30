@@ -6,6 +6,11 @@ export interface Message {
   imageUrl?: string;
   insights?: IngredientInsight[];
   isLoading?: boolean;
+  healthScore?: number;
+  concerns?: string[];
+  recommendations?: string[];
+  allergenAlerts?: string[];
+  drugInteractions?: string[];
 }
 
 export interface IngredientInsight {
@@ -25,10 +30,15 @@ export interface HealthProfile {
 
 export interface AnalysisResult {
   productName?: string;
-  ingredients: string[];
+  ingredients?: string[];
   insights: IngredientInsight[];
   summary: string;
-  healthProfile: HealthProfile;
+  healthProfile?: HealthProfile;
+  healthScore?: number;
+  concerns?: string[];
+  recommendations?: string[];
+  allergenAlerts?: string[];
+  drugInteractions?: string[];
   error?: string;
 }
 

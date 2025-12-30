@@ -1,26 +1,53 @@
 import { useState, useRef, useEffect, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, ImagePlus, Sparkles, X, Zap } from 'lucide-react';
+import { Send, ImagePlus, Sparkles, X, Zap, Brain, Pill, Heart, Leaf } from 'lucide-react';
 import type { Message, AnalysisResult } from '@/types';
 import { cn } from '@/lib/utils';
 import { performOCR } from '@/lib/ocr';
-import { getMockAnalysis, inferHealthConcerns } from '@/lib/mock-data';
 import { MessageBubble, WelcomeMessage } from './MessageBubble';
 import { ImageUpload } from './ImageUpload';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 function generateId() {
   return Math.random().toString(36).substring(2, 9);
 }
 
 export function ChatWindow() {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [healthConcerns, setHealthConcerns] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Load user's health concerns
+  useEffect(() => {
+    if (user) {
+      loadHealthConcerns();
+    }
+  }, [user]);
+
+  const loadHealthConcerns = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('health_concerns')
+        .eq('user_id', user!.id)
+        .single();
+
+      if (data?.health_concerns) {
+        setHealthConcerns(data.health_concerns);
+      }
+    } catch (error) {
+      console.error('Error loading health concerns:', error);
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -45,24 +72,26 @@ export function ChatWindow() {
     setImagePreview(null);
   };
 
-  const processAnalysis = async (query: string, imageFile?: File): Promise<AnalysisResult> => {
-    let extractedText = '';
-    
-    if (imageFile) {
-      const ocrResult = await performOCR(imageFile);
-      if (ocrResult.success) {
-        extractedText = ocrResult.text;
+  const analyzeWithAI = async (query: string, extractedText: string, productName?: string): Promise<AnalysisResult> => {
+    try {
+      const response = await supabase.functions.invoke('analyze-ingredients', {
+        body: {
+          query,
+          extractedText,
+          productName,
+          healthConcerns,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
       }
-    }
 
-    const concerns = inferHealthConcerns(query);
-    const analysis = getMockAnalysis(query || extractedText);
-    
-    if (concerns.length > 0) {
-      analysis.healthProfile.concerns = [...new Set([...concerns, ...analysis.healthProfile.concerns])];
+      return response.data;
+    } catch (error) {
+      console.error('AI analysis error:', error);
+      throw error;
     }
-
-    return analysis;
   };
 
   const handleSubmit = async (e?: FormEvent) => {
@@ -92,15 +121,26 @@ export function ChatWindow() {
     setMessages(prev => [...prev, loadingMessage]);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      let extractedText = '';
       
-      const analysis = await processAnalysis(inputValue, selectedImage || undefined);
+      if (selectedImage) {
+        const ocrResult = await performOCR(selectedImage);
+        if (ocrResult.success) {
+          extractedText = ocrResult.text;
+        }
+      }
+
+      const analysis = await analyzeWithAI(inputValue, extractedText);
+
+      if (analysis.error) {
+        throw new Error(analysis.error);
+      }
 
       let responseContent = '';
-      if (analysis.healthProfile.concerns.length > 0) {
-        responseContent = `Based on your ${analysis.healthProfile.concerns.join(' and ')} concerns, here's my analysis of ${analysis.productName || 'this product'}:`;
+      if (healthConcerns.length > 0) {
+        responseContent = `Based on your health profile, here's my analysis of ${analysis.productName || 'this product'}:`;
       } else {
-        responseContent = `Here's my analysis of ${analysis.productName || 'this product'}:`;
+        responseContent = `Here's my comprehensive analysis of ${analysis.productName || 'this product'}:`;
       }
 
       const assistantMessage: Message = {
@@ -108,7 +148,12 @@ export function ChatWindow() {
         role: 'assistant',
         content: responseContent,
         timestamp: new Date(),
-        insights: analysis.insights,
+        insights: analysis.insights || [],
+        healthScore: analysis.healthScore,
+        concerns: analysis.concerns,
+        recommendations: analysis.recommendations,
+        allergenAlerts: analysis.allergenAlerts,
+        drugInteractions: analysis.drugInteractions,
       };
 
       setMessages(prev => {
@@ -116,28 +161,35 @@ export function ChatWindow() {
         return [...newMessages, assistantMessage];
       });
 
-      setTimeout(() => {
-        const summaryMessage: Message = {
-          id: generateId(),
-          role: 'assistant',
-          content: analysis.summary,
-          timestamp: new Date(),
-        };
-        setMessages(prev => [...prev, summaryMessage]);
-      }, 500);
+      // Save to history
+      if (user) {
+        try {
+          await supabase.from('analysis_history').insert([{
+            user_id: user.id,
+            product_name: analysis.productName,
+            query: inputValue,
+            analysis_result: analysis as unknown as Record<string, unknown>,
+          }]);
+        } catch (historyError) {
+          console.error('Failed to save history:', historyError);
+        }
+      }
 
     } catch (error) {
       console.error('Analysis error:', error);
       const errorMessage: Message = {
         id: generateId(),
         role: 'assistant',
-        content: "I had trouble analyzing that. Could you try a clearer image or describe the product you're asking about?",
+        content: error instanceof Error && error.message.includes('Rate limit')
+          ? "I'm a bit busy right now. Please try again in a moment."
+          : "I had trouble analyzing that. Could you try a clearer image or describe the product you're asking about?",
         timestamp: new Date(),
       };
       setMessages(prev => {
         const newMessages = prev.filter(m => !m.isLoading);
         return [...newMessages, errorMessage];
       });
+      toast.error('Analysis failed. Please try again.');
     } finally {
       setIsLoading(false);
       clearImage();
@@ -145,10 +197,10 @@ export function ChatWindow() {
   };
 
   const suggestedQueries = [
-    { text: 'Is this safe for diabetics?', icon: '🩺' },
-    { text: 'Check for common allergens', icon: '⚠️' },
-    { text: 'Is this product vegan?', icon: '🌱' },
-    { text: 'Analyze sodium content', icon: '🧂' },
+    { text: 'Is this safe for diabetics?', icon: <Pill className="w-4 h-4" />, color: 'text-destructive' },
+    { text: 'Check for common allergens', icon: <Heart className="w-4 h-4" />, color: 'text-warning' },
+    { text: 'Is this product vegan?', icon: <Leaf className="w-4 h-4" />, color: 'text-success' },
+    { text: 'Analyze nutritional value', icon: <Brain className="w-4 h-4" />, color: 'text-primary' },
   ];
 
   const handleSuggestion = (query: string) => {
@@ -158,6 +210,26 @@ export function ChatWindow() {
 
   return (
     <div className="flex flex-col h-full">
+      {/* Health Profile Banner */}
+      {healthConcerns.length > 0 && messages.length === 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="px-4 py-3 bg-primary/5 border-b border-primary/10"
+        >
+          <div className="max-w-2xl mx-auto flex items-center gap-3 text-sm">
+            <Sparkles className="w-4 h-4 text-primary" />
+            <span className="text-muted-foreground">
+              AI is personalized for: 
+              <span className="text-primary font-medium ml-1">
+                {healthConcerns.slice(0, 3).join(', ')}
+                {healthConcerns.length > 3 && ` +${healthConcerns.length - 3} more`}
+              </span>
+            </span>
+          </div>
+        </motion.div>
+      )}
+
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto px-4 py-6">
         <div className="max-w-2xl mx-auto space-y-6">
@@ -253,9 +325,11 @@ export function ChatWindow() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.1 }}
                   onClick={() => handleSuggestion(query.text)}
-                  className="px-4 py-2 text-sm rounded-full glass-card hover:shadow-soft transition-all duration-300 flex items-center gap-2"
+                  className="px-4 py-2.5 text-sm rounded-full glass-card hover:shadow-soft transition-all duration-300 flex items-center gap-2 group"
                 >
-                  <span>{query.icon}</span>
+                  <span className={cn("transition-transform group-hover:scale-110", query.color)}>
+                    {query.icon}
+                  </span>
                   <span className="text-foreground">{query.text}</span>
                 </motion.button>
               ))}
@@ -307,7 +381,7 @@ export function ChatWindow() {
           </form>
 
           <p className="text-xs text-center text-muted-foreground">
-            Ingredient Co-Pilot provides general information. Consult healthcare professionals for medical advice.
+            AI-powered analysis • Your health profile enhances personalization • Not a substitute for medical advice
           </p>
         </div>
       </div>

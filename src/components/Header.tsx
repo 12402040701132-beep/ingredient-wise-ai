@@ -1,4 +1,5 @@
-import { Leaf, LogOut, User, History } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Leaf, LogOut, User, History, Settings } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 export function Header() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const handleSignOut = async () => {
     await signOut();
@@ -30,9 +32,10 @@ export function Header() {
     <header className="sticky top-0 z-40 border-b border-border/50 bg-background/70 backdrop-blur-xl">
       <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
         <motion.div
-          className="flex items-center gap-3"
+          className="flex items-center gap-3 cursor-pointer"
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
+          onClick={() => navigate('/')}
         >
           <div className="w-10 h-10 rounded-xl gradient-hero flex items-center justify-center shadow-glow">
             <Leaf className="w-5 h-5 text-primary-foreground" />
@@ -70,11 +73,17 @@ export function Header() {
                   <p className="text-xs text-muted-foreground">{user.email}</p>
                 </div>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="gap-2 cursor-pointer">
-                  <User className="w-4 h-4" />
-                  Profile
+                <DropdownMenuItem 
+                  className="gap-2 cursor-pointer"
+                  onClick={() => navigate('/profile')}
+                >
+                  <Settings className="w-4 h-4" />
+                  Health Profile
                 </DropdownMenuItem>
-                <DropdownMenuItem className="gap-2 cursor-pointer">
+                <DropdownMenuItem 
+                  className="gap-2 cursor-pointer"
+                  onClick={() => navigate('/history')}
+                >
                   <History className="w-4 h-4" />
                   Analysis History
                 </DropdownMenuItem>
