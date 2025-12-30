@@ -103,11 +103,6 @@ export default function History() {
   const getAnalysisResult = (item: HistoryItem) => {
     return item.analysis_result as AnalysisResult | null;
   };
-    if (score >= 8) return 'text-success bg-success/20';
-    if (score >= 6) return 'text-primary bg-primary/20';
-    if (score >= 4) return 'text-warning bg-warning/20';
-    return 'text-destructive bg-destructive/20';
-  };
 
   if (authLoading || loading) {
     return (
