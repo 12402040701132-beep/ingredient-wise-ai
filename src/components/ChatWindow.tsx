@@ -166,9 +166,9 @@ export function ChatWindow() {
         try {
           await supabase.from('analysis_history').insert([{
             user_id: user.id,
-            product_name: analysis.productName,
-            query: inputValue,
-            analysis_result: analysis as unknown as Record<string, unknown>,
+            product_name: analysis.productName || null,
+            query: inputValue || null,
+            analysis_result: JSON.parse(JSON.stringify(analysis)),
           }]);
         } catch (historyError) {
           console.error('Failed to save history:', historyError);
